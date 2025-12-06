@@ -1,30 +1,55 @@
-// src/config/database.js (Kode Baru)
-const { Pool } = require('pg');
-require('dotenv').config();
+// app.js (Konten BARU: Logika Express Anda)
 
-// Gunakan DATABASE_URL yang merupakan URL koneksi penuh dari Neon
-// Jika DATABASE_URL tidak ada, fallback ke konfigurasi lokal lama
-const connectionString = process.env.DATABASE_URL;
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const cookieParser = require('cookie-parser');
 
-const poolConfig = connectionString 
-  ? { connectionString, ssl: { rejectUnauthorized: false } } // Konfigurasi untuk Neon/Production
-  : { // Fallback untuk Development Lokal (jika Anda masih ingin menggunakan env terpisah)
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME || 'simanja',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD,
-    };
+// Load environment variables
+dotenv.config();
 
-const pool = new Pool(poolConfig);
+// Import routes
+const authRoutes = require('./src/routes/authRoutes');
+const userRoutes = require('./src/routes/userRoutes');
+const transactionRoutes = require('./src/routes/transactionRoutes');
 
-// Test connection
-pool.on('connect', () => {
-  console.log('✅ Terhubung ke database PostgreSQL');
+// Initialize express app
+const app = express();
+
+// Middleware
+app.use(cors({
+  origin: ['http://localhost:8080', 'http://127.0.0.1:8080', 'file://', 'null'],
+  credentials: true,
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// Test route
+app.get('/', (req, res) => {
+  res.json({ /* ... response test route ... */ });
 });
 
-pool.on('error', (err) => {
-  console.error('❌ Database connection error:', err.message);
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/transactions', transactionRoutes);
+
+// Error handling middleware (Penting: Masukkan kembali semua logika Multer, Cloudinary, JWT Anda di sini)
+app.use((err, req, res, next) => {
+  console.error('❌ Server Error:', err.stack);
+  // ... [Semua logika Multer, Cloudinary, JWT error handling] ...
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error'
+  });
 });
 
-module.exports = pool;
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Endpoint tidak ditemukan'
+  });
+});
+
+// EKSPOR APLIKASI EXPRESS (Bukan pool database)
+module.exports = app;
