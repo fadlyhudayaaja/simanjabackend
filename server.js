@@ -1,95 +1,30 @@
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const cookieParser = require('cookie-parser');
+// src/config/database.js (Kode Baru)
+const { Pool } = require('pg');
+require('dotenv').config();
 
-// Load environment variables
-dotenv.config();
+// Gunakan DATABASE_URL yang merupakan URL koneksi penuh dari Neon
+// Jika DATABASE_URL tidak ada, fallback ke konfigurasi lokal lama
+const connectionString = process.env.DATABASE_URL;
 
-// Import routes
-const authRoutes = require('./src/routes/authRoutes');
-const userRoutes = require('./src/routes/userRoutes');
-const transactionRoutes = require('./src/routes/transactionRoutes');
+const poolConfig = connectionString 
+  ? { connectionString, ssl: { rejectUnauthorized: false } } // Konfigurasi untuk Neon/Production
+  : { // Fallback untuk Development Lokal (jika Anda masih ingin menggunakan env terpisah)
+      host: process.env.DB_HOST || 'localhost',
+      port: process.env.DB_PORT || 5432,
+      database: process.env.DB_NAME || 'simanja',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD,
+    };
 
-// Initialize express app
-const app = express();
+const pool = new Pool(poolConfig);
 
-// Middleware
-app.use(cors({
-  origin: ['http://localhost:8080', 'http://127.0.0.1:8080', 'file://', 'null'],
-  credentials: true,
-}));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-
-// Test route
-app.get('/', (req, res) => {
-  res.json({ 
-    message: 'Simanja API is running',
-    version: '1.0.0',
-    endpoints: {
-      auth: '/api/auth',
-      users: '/api/users',
-      transactions: '/api/transactions'
-    }
-  });
+// Test connection
+pool.on('connect', () => {
+  console.log('✅ Terhubung ke database PostgreSQL');
 });
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/transactions', transactionRoutes);
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('❌ Server Error:', err.stack);
-  
-  // Multer error handling
-  if (err.name === 'MulterError') {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({
-        error: 'Ukuran file terlalu besar. Maksimal 5MB'
-      });
-    }
-    return res.status(400).json({
-      error: err.message
-    });
-  }
-  
-  // Cloudinary error
-  if (err.message.includes('Cloudinary')) {
-    return res.status(500).json({
-      error: 'Error saat mengupload file ke cloud'
-    });
-  }
-
-  // JWT error
-  if (err.name === 'JsonWebTokenError') {
-    return res.status(401).json({
-      error: 'Token tidak valid'
-    });
-  }
-  
-  if (err.name === 'TokenExpiredError') {
-    return res.status(401).json({
-      error: 'Token telah kadaluarsa'
-    });
-  }
-
-  // Default error
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error'
-  });
+pool.on('error', (err) => {
+  console.error('❌ Database connection error:', err.message);
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    error: 'Endpoint tidak ditemukan'
-  });
-});
-
-// Start server
-// Export app untuk digunakan oleh Vercel sebagai Serverless Function
-module.exports = app;
+module.exports = pool;
