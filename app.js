@@ -1,5 +1,3 @@
-// app.js (Konten BARU: Logika Express Anda)
-
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -27,7 +25,15 @@ app.use(cookieParser());
 
 // Test route
 app.get('/', (req, res) => {
-  res.json({ /* ... response test route ... */ });
+  res.json({ 
+    message: 'Simanja API is running',
+    version: '1.0.0',
+    endpoints: {
+      auth: '/api/auth',
+      users: '/api/users',
+      transactions: '/api/transactions'
+    }
+  });
 });
 
 // API Routes
@@ -35,10 +41,43 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/transactions', transactionRoutes);
 
-// Error handling middleware (Penting: Masukkan kembali semua logika Multer, Cloudinary, JWT Anda di sini)
+// Error handling middleware
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err.stack);
-  // ... [Semua logika Multer, Cloudinary, JWT error handling] ...
+  
+  // Multer error handling
+  if (err.name === 'MulterError') {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        error: 'Ukuran file terlalu besar. Maksimal 5MB'
+      });
+    }
+    return res.status(400).json({
+      error: err.message
+    });
+  }
+  
+  // Cloudinary error
+  if (err.message.includes('Cloudinary')) {
+    return res.status(500).json({
+      error: 'Error saat mengupload file ke cloud'
+    });
+  }
+
+  // JWT error
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      error: 'Token tidak valid'
+    });
+  }
+  
+  if (err.name === 'TokenExpiredError') {
+    return res.status(401).json({
+      error: 'Token telah kadaluarsa'
+    });
+  }
+
+  // Default error
   res.status(err.status || 500).json({
     error: err.message || 'Internal Server Error'
   });
@@ -51,5 +90,5 @@ app.use((req, res) => {
   });
 });
 
-// EKSPOR APLIKASI EXPRESS (Bukan pool database)
+// EKSPOR APLIKASI EXPRESS (Wajib untuk Vercel)
 module.exports = app;
